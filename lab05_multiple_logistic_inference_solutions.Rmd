@@ -1,0 +1,173 @@
+---
+title: "Lab05 - Multiple Logistic Regression Inference"
+author: "Solutions"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<!-- Note: All R code has to go inbetween the line that looks like ```{r} and the line that looks like ```!! -->
+
+## Loading Packages
+
+Run the code chunk below to load packages needed for this lab.
+
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+## Refugees
+
+In this lab we will examine data originally presented in
+
+Greene and Shaffer (1992). Leave to appeal and leave to commence judicial review in Canada's refugee-determination system: Is the process fair?  *International Journal of Refugee Law*, 4:71-83.
+
+The data were discussed again in
+
+Fox (1997). Applied Regression Analysis, Linear Models, and Related Methods.  Sage Publications, London.
+
+The following description of the data is from Fox (1997).
+
+"Greene and Shaffer (1992) analyzed decisions by the Canadian Federal Court of a Appeal on cases filed by refugee applicants who had been turned down by the Immigration and refugee Board.... Restricting our attention to the 10 (of 23) judges who were present on the court during the entire period of the study, and to countries of origin that produced at least 20 appeals during this period, we shall elaborate Green and Shaffer's analysis using a logistic regression.  The dependent variable is whether or not leave was granted to appeal the decision of the Refugee Board.  We shall examine a random subsample of cases for which an independent expert rted the merit of the case.  (The judge does not decide whether the applicant is granted refugee status; if the case has any merit, an appeal should be granted.)  ... The principle object of the analysis is to determine whether the substantial differences among the judges in their rates of granitng leave to appeal can be explained by differences in characteristics of the cases [they heard].  [T]he cases were assigned to the judges not at random, but on a rotating basis."
+
+The following R code reads the data in and does some minimal pre-processing.  The variables in the data set are as follows:
+
+* `case_id`: a unique identifier for each case
+* `judge`: the name of the judge who heard the case
+* `origin`: the country of origin of the refugee applicant
+* `independent_decision`: the recommendation made by the independent expert as to whether the case merits appeal
+* `judge_decision`: the judge's decision as to whether to grant an appeal
+* `case_language`: the language in which the case was heard
+* `claim_location`: the location of the court in which the case was heard
+* `logit_success`: The logit of the success rate for all cases from the applicant's nation decided during the period of the study (i.e., log(number of leaves granted / number of leaves denied))
+
+```{r}
+# read_table is provided by the readr package and can be used to read files
+# where columns are separated by whitespace
+refugees <- read_table("http://www.evanlray.com/data/fox/Greene.dat", col_names = FALSE)
+
+# set column names in refugees data frame
+colnames(refugees) <- c("case_id", "judge", "origin", "independent_decision", "judge_decision", "case_language", "claim_location", "logit_success")
+
+refugees <- refugees %>%
+  mutate(
+    judge = factor(judge),
+    origin = factor(origin),
+    independent_decision = factor(independent_decision),
+    judge_decision = factor(judge_decision),
+    case_language = factor(case_language)
+  )
+
+head(refugees)
+```
+
+## Problem 1: Fit a model with `judge_decision` as the response variable and `judge`, `independent_decision`, `case_language`, `claim_location`, and `logit_success` as explanatory variables.  Examine a summary of the model fit.  Based on two separate hypothesis tests, does it seem like the `claim_location` variable is important for predicting the judge's decision?
+
+```{r}
+fit <- glm(judge_decision ~ judge + independent_decision + case_language + claim_location + logit_success,
+  data = refugees,
+  family = binomial)
+summary(fit)
+
+str(refugees)
+refugees %>% distinct(claim_location)
+```
+
+In this full model fit, let's use $\beta_{12}$ and $\beta_{13}$ to denote the coefficients labelled in the R output as `claim_locationother` and `claim_locationToronto`, respectively.  Since the `claim_location` variable is a categorical variable, these coefficients are for indicator variables indicating whether a particular observation's claim location was "other" or "Toronto".  For example,
+
+\begin{equation*}
+\mathtt{claim\_locationToronto} = \begin{cases} 1 & \text{ if the claim location for observation number $i$ is Toronto} \\ 0 & \text{ otherwise} \end{cases}
+\end{equation*}
+
+From the R output above, we can see that the `claim_location` variable has three levels: "Montreal", "Toronto", and "other".  The baseline category is therefore "Montreal".  The two coefficients here are describing a difference in odds of an appeal being granted between a location of "other" and "Montreal", and between "Toronto" and "Montreal".
+
+We might conduct two separate hypothesis tests about these differences.
+
+For our first hypothesis test, the hypotheses are:
+
+$H_0$: There is no difference in odds of approving an appeal for claims in Montreal and claims in another location (other than Toronto) after accounting for the judge who hears the case, the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  $\beta_{12} = 0$.
+
+$H_A$: There is a difference in odds of approving an appeal for claims in Montreal and claims in another location (other than Toronto) after accounting for the judge who hears the case, the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  $\beta_{12} \neq 0$.
+
+From the R output, the p-value for this test is 0.077981.  This is larger than a typical significance level threshold such as $\alpha = 0.05$.  We do not find statistically significant evidence that there is a difference in odds of granting appeals for cases heard in Montreal or in another location (other than Toronto).
+
+
+For our second hypothesis test, the hypotheses are:
+
+$H_0$: There is no difference in odds of approving an appeal for claims in Montreal and claims in Toronto after accounting for the judge who hears the case, the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  $\beta_{13} = 0$.
+
+$H_A$: There is a difference in odds of approving an appeal for claims in Montreal and claims in Toronto after accounting for the judge who hears the case, the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  $\beta_{13} \neq 0$.
+
+From the R output, the p-value for this test is 0.118579.  This is larger than a typical significance level threshold such as $\alpha = 0.05$.  We do not find statistically significant evidence that there is a difference in odds of granting appeals for cases heard in Montreal or in Toronto.
+
+## Problem 2: The real way to answer the question posed above is with a single test that compares the full model fit above with a reduced model that does not include the `claim_location` variable.  Perform this test now.  What is your conclusion?
+
+```{r}
+fit_nolocation <-  glm(judge_decision ~ judge + independent_decision + case_language + logit_success,
+  data = refugees,
+  family = binomial)
+
+summary(fit_nolocation)
+
+anova(fit_nolocation, fit, test = "LRT")
+```
+
+Now we conduct a simultaneous hypothesis test about the two coefficients:
+
+$H_0$: There is no difference in odds of granting an appeal based on the location where the claim is heard after accounting for the judge who hears the case, the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  $\beta_{12} = \beta_{13} = 0$.
+
+$H_A$: There is a difference in odds of granting an appeal based on the location where the claim is heard after accounting for the judge who hears the case, the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  At least one of $\beta_{12}$ or $\beta_{13}$ is not equal to 0.
+
+From the R output above, the p-value for this test is 0.2041.  We fail to reject the null hypothesis; the data do not
+provide statistically significant evidence that there is a difference in the odds that an appeal will be granted
+for claims heard in different locations.
+
+## Problem 3: After controlling for an independent expert's recommendation, the language the case was heard in, and the overall success rate for all cases from the applicant's origin nation, are there statistically significant differences in the chances of granting an appeal for different judges?  To answer this question, fit a reduced model that includes only `independent_decision`, `case_language`, and `logit_success` as explanatory variables, then conduct a hypothesis test comparing this model to the one from problem 2 that also includes `judge`.  What is your conclusion?
+
+```{r}
+fit_nojudge <- glm(judge_decision ~ independent_decision + case_language + logit_success,
+  data = refugees,
+  family = binomial)
+
+summary(fit_nojudge)
+
+anova(fit_nojudge, fit_nolocation, test = "LRT")
+```
+
+Based on the model fit from problem 2 (without claim location, but with judge as an explanatory variable), let's label the judge-specific coefficients as $\beta_1, \ldots, \beta_9$.
+
+Our hypotheses are:
+
+$H_0$: there is no association between the judge hearing a case and the odds that an appeal will be granted after accounting for the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  $\beta_1 = \cdots = \beta_9 = 0$
+
+$H_A$: There is an association between the judge hearing a case and the odds that an appeal will be granted after accounting for the recommendation of an independent expert, the language in which the case is heard, and the overall success rate for cases from the applicant's country of origin.  At least one of $\beta_1$, ..., $\beta_9$ is not equal to 0.
+
+From the R output above, the p-value for this test is $3.12 \times 10^{-07}$.  We reject the null hypothesis; the data provide statistically significant evidence that the odds of an appeal being granted are different for different judges, after accounting for an independent expert's recommendation, the language the case was heard in, and the overall success rate for cases from the applicant's country of origin.
+
+## Problem 4: In your final model fit (whichever seems best based on the hypothesis tests you conducted above), what is the interpretation of the estimated coefficient for `logit_success`?
+
+Don't worry about the units of `logit_success` (your answer can start with "If logit_success increases by one unit...").
+
+I will use the model from Problem 2, which includes the judge as an explanatory variable, but not the claim location.  The coefficient estimate for `logit_success` in that model was 1.51438.  In order to interpret this in terms of odds, we exponentiate this:
+
+```{r}
+exp(1.51438)
+```
+
+If logit_success increases while one unit while holding all other covariates in the model fixed, the estimated odds that an appeal will be granted increase by a multiplicative factor of 4.5.
+
+## Problem 5: If you were an immigrant applying for refugee status, would you want your case to be heard by the judge named Iacobucci?  Explain by interpreting one of the coefficients in your final model fit.
+
+
+```{r}
+refugees %>% distinct(judge)
+```
+
+The first judge alphabetically is Desjardins; this is used as the reference category for this variable since we did not specify an ordering (note that all other judges' names appear labelling coefficient estimates in the model summary output).  Therefore, the estimated coefficients describe differences in the odds of granting an appeal for other judges relative to Desjardins.
+
+The estimated coefficient for Iacobucci is -2.56776; exponentiating, we find that $\exp(-2.56776) = 0.0767$.  We estimate that if two cases with the same recommendation by an independent expert, the same language, and same overall success rate from the applicant's country of origin are heard by Desjardins and by Iacobucci, the odds that an appeal will be granted in the case heard by Iacobucci are only about 7% of the odds that an appeal will be granted in the case heard by Desjardins.  If I were an immigrant, I would definitely not want my case to be heard by Iacobucci.
+
