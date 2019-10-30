@@ -1,6 +1,6 @@
 ---
 title: "Lab07 - Multiple Logistic Regression Inference"
-author: "What's your name?"
+author: "Victoria Wang"
 output: pdf_document
 ---
 
@@ -68,25 +68,48 @@ head(refugees)
 ## Problem 1: Fit a model with `judge_decision` as the response variable and `judge`, `independent_decision`, `case_language`, `claim_location`, and `logit_success` as explanatory variables.  Examine a summary of the model fit.  Based on two separate hypothesis tests, does it seem like the `claim_location` variable is important for predicting the judge's decision?
 
 ```{r}
+fit_full <- glm(
+  judge_decision ~ judge + independent_decision + case_language + claim_location + logit_success, 
+  data = refugees, 
+  family = 'binomial')
 
+summary(fit_full)
 ```
 
 ## Problem 2: The real way to answer the question posed above is with a single test that compares the full model fit above with a reduced model that does not include the `claim_location` variable.  Perform this test now.  What is your conclusion?
 
 ```{r}
+fit_base <- glm(
+  judge_decision ~ judge + independent_decision + case_language + logit_success, 
+  data = refugees, 
+  family = 'binomial')
+summary(fit_base)
+```
 
+```{r}
+anova(fit_base, fit_full, test = 'LRT')
 ```
 
 ## Problem 3: After controlling for an independent expert's recommendation, the language the case was heard in, and the overall success rate for all cases from the applicant's origin nation, are there statistically significant differences in the chances of granting an appeal for different judges?  To answer this question, fit a reduced model that includes only `independent_decision`, `case_language`, and `logit_success` as explanatory variables, then conduct a hypothesis test comparing this model to the one from problem 2 that also includes `judge`.  What is your conclusion?
 
 ```{r}
+fit_3 <- glm(
+  judge_decision ~ independent_decision + case_language + logit_success, 
+  data = refugees, 
+  family = 'binomial')
+summary(fit_3)
+```
 
+```{r}
+anova(fit_base, fit_3, test = 'LRT')
 ```
 
 ## Problem 4: In your final model fit (whichever seems best based on the hypothesis tests you conducted above), what is the interpretation of the estimated coefficient for `logit_success`?
 
 Don't worry about the units of `logit_success` (your answer can start with "If logit_success increases by one unit...").
 
-
+If logit_success increases by one unit, the log odds of leave granted to appeal the decision of the Refugee Board increases by 1.3005. 
 
 ## Problem 5: If you were an immigrant applying for refugee status, would you want your case to be heard by the judge named Iacobucci?  Explain by interpreting one of the coefficients in your final model fit.
+
+No. The nested ANOVA test suggests that the judge plays a vital role in the odds of leave granted to appeal. This means that the court is by no means just ---- whether I get my leave or not depends largely on the arbitrary odds of who is looking into my case. 
